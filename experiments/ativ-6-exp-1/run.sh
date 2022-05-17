@@ -3,7 +3,7 @@
 #Arguments
 MASTER_IP="$1"
 RANK=$2
-N_NODE=$3
+N_NODES=$3
 
 #Change to the root directory
 cd ../..
