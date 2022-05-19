@@ -1,0 +1,46 @@
+# Playbook para implantação e execução da DCGAN
+# Você deve adicionar mais tasks a partir do local indicado, abaixo.
+# Lembre-se que a indentação é muito importante.
+# Para mais informações sobre YAML, veja: https://docs.ansible.com/ansible/latest/reference_appendices/YAMLSyntax.html
+
+- name: "Play 1: Configurar e executar a DCGAN em uma máquina."
+  hosts: cloud
+  tasks:
+  # Teste simples. A mensagem "Teste SSH OK!" deve ser impressa na tela
+  - name: "Task 1: Testando o SSH"
+    debug:
+      msg: "Teste SSH OK!"
+
+  ###############################################
+  #   Adicione suas tasks a partir daqui..      #
+  ###############################################
+
+  # Exemplo de task utilizada para adicionar o usuário ubuntu ao grupo Docker
+  - name: "Task 2: Adicionar usuario ubuntu ao grupo docker"
+    become: true
+    user:
+      name: ubuntu
+      groups: docker
+      append: yes
+
+  - name: "Task 3: Clone repository"
+    git:
+      repo: https://github.com/AdahilMuniz/Distributed-DCGAN.git
+      dest: .
+      clone: yes
+
+  ## Exemplo de task para reiniciar a conexão SSH
+  #- name: "Task 3: Reinicar a conexão ssh para a alterações de grupos tenham efeito"
+  #  ansible.builtin.meta:
+  #    reset_connection
+
+
+  # Exemplo de task que imprime uma mensagem de sucesso
+  - name: "Task N: Final"
+    debug:
+      msg: "Playbook executado com sucesso!"
+
+  ###############################################
+  #   Fim das suas tasks..                      #
+  ###############################################
+
