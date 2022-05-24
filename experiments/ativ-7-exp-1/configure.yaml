@@ -15,25 +15,50 @@
   #   Adicione suas tasks a partir daqui..      #
   ###############################################
 
+  - name: "Task 2.0: Instalar dependências"
+    become: true
+    apt:
+      pkg:
+      - docker.io
+      - python3-docker
+      update_cache: yes
+
   # Exemplo de task utilizada para adicionar o usuário ubuntu ao grupo Docker
-  - name: "Task 2: Adicionar usuario ubuntu ao grupo docker"
+  - name: "Task 2.1: Adicionar usuario ubuntu ao grupo docker"
     become: true
     user:
       name: ubuntu
       groups: docker
       append: yes
 
+  ## Exemplo de task para reiniciar a conexão SSH
+  - name: "Task 2.2: Reinicar a conexão ssh para a alterações de grupos tenham efeito"
+    ansible.builtin.meta:
+      reset_connection
+
   - name: "Task 3: Clone repository"
     git:
-      repo: https://github.com/AdahilMuniz/Distributed-DCGAN.git
-      dest: .
+      repo: https://github.com/eborin/Distributed-DCGAN.git
+      dest: ./Distributed-DCGAN
       clone: yes
 
-  ## Exemplo de task para reiniciar a conexão SSH
-  #- name: "Task 3: Reinicar a conexão ssh para a alterações de grupos tenham efeito"
-  #  ansible.builtin.meta:
-  #    reset_connection
+  - name: "Task 4: Build Imagem Docker"
+    docker_image:
+      name: dist_dcgan
+      source: build
+      build:
+        path: ./Distributed-DCGAN
+      #state: present #Ensure that the application is installed
 
+  - name: "Task 5: Executar Aplicação DCGAN"
+    ansible.builtin.shell: docker run --rm -e HOMEDIR=$(pwd) -w $(pwd) -v=$(pwd):$(pwd) dist_dcgan:latest python -m torch.distributed.launch dist_dcgan.py --dataset mnist --dataroot data --download --image_size 64 --batch_size 128 --out_folder output --test_data --num_epochs 1 --max_workers 1 >> output.txt
+    args:
+      chdir: ./Distributed-DCGAN/ #Change to the correct directory
+
+  - name: "Task 6: Copiar resultado para local"
+    fetch:
+      src: ./Distributed-DCGAN/output.txt
+      dest: ./results/
 
   # Exemplo de task que imprime uma mensagem de sucesso
   - name: "Task N: Final"
