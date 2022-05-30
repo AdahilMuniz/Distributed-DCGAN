@@ -12,12 +12,16 @@
     username:  "{{ lookup('env', 'USERNAME') }}"
     user_dir: "{{ efs_mount_point }}/{{ username }}"
     results_dir: "{{ user_dir }}/Distributed-DCGAN/output/cluster-{{ ansible_play_hosts | length }}"
+    nb_hosts: "{{ ansible_play_hosts | length }}"
+    master_addr: "{{ hostvars['node0'].ansible_host }}"
 
   tasks:
   # Teste simples. A mensagem "Teste SSH OK!" deve ser impressa na tela
   - name: "Task 1: Apenas testando o SSH"
     debug:
       msg: "Meu nome é {{ inventory_hostname }}. Meu endereço é {{ ansible_host }}. O meu usuário de login é {{ ansible_user }}."
+      msg: "Número de hosts: {{ nb_hosts }}"
+      msg: "Endereço do Mestre: {{ master_addr }}"
 
   # Task para criar o grupo docker
   - name: "Task 2: Cria o grupo docker"
@@ -52,19 +56,47 @@
       update_cache: yes
 
   - name: "Task 6.0 : Criar diretório EFS"
-    ansible.builtin.file:
-      path: /home/ubuntu/efs
+    file:
+      path: "{{ efs_mount_point }}"
       state: directory
       mode: '0777'
-      #recursive: yes
 
-  - name: "Task 6: Montar sistema de arquivos compartilhado EFS"
-    ansible.posix.mount:
+  - name: "Task 6.1: Montar sistema de arquivos compartilhado EFS"
+    become: true
+    mount:
       path: "{{ efs_mount_point }}"
       src: "{{ efs_host }}:/"
       fstype: nfs4
       opts: nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport
       state: mounted
+
+  - name: "Task 7: Clonar repositório Distributed-DCGAN"
+    run_once: true #Make it run just for one node
+    git:
+      repo: https://github.com/eborin/Distributed-DCGAN.git
+      dest: "{{ user_dir }}/Distributed-DCGAN"
+      clone: yes
+      update: yes
+
+  - name: "Task 8: Build Imagem Docker"
+    docker_image:
+      name: dist_dcgan
+      source: build
+      build:
+        path: "{{ user_dir }}/Distributed-DCGAN"
+
+  - name: "Task 9: Criar diretório de resultados"
+    become: true
+    file:
+      path: "{{ results_dir }}"
+      state: directory
+      mode: '0777'
+    run_once: true
+
+  - name: "Task 10: Executar Aplicação DCGAN"
+    ansible.builtin.shell: docker run --network=host --rm -e HOMEDIR=$(pwd) -w $(pwd) -v={{ cifar_data_dir }}:{{ cifar_data_dir }} -v=$(pwd):$(pwd) dist_dcgan:latest python -m torch.distributed.launch --nproc_per_node=1 --nnodes={{ nb_hosts }} --node_rank={{ node_rank }} --master_addr="{{ master_addr }}" --master_port=1234 dist_dcgan.py --dataset cifar10 --dataroot {{ cifar_data_dir }} --image_size 64 --batch_size 128 --out_folder {{ results_dir }} --test_data --num_epochs 2 --max_workers 1 > {{results_dir }}/output-{{ node_rank }}.txt
+    args:
+      chdir: "{{ user_dir }}/Distributed-DCGAN" #Change to the correct directory
 
   ###############################################
   #   Fim das suas tasks..                      #
